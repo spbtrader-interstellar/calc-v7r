@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Окупаемость Virtue RF</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap">
+<style>
+/* Layout: панель ползунков слева (липкая), справа вывод → два графика-линии → разбор процедуры → таблица. На телефоне — одна колонка. */
+:root{
+  --bg:#EDF1F3; --surface:#FFFFFF; --ink:#13202A; --muted:#5A6B76; --line:#D3DDE2; --soft:#E4EBEF;
+  --accent:#1D5FC0; --accent-soft:#DCE8F8; --dep:#B4741A; --dep-soft:#F6EBD9;
+  --good:#2C7A55; --good-soft:#DDEFE5; --bad:#B4443A; --bad-soft:#F6E0DD;
+  --c-doc:#5B7FA6; --c-cart:#C0873A; --c-cons:#8C7FB0; --c-tax:#7E8C93; --c-acq:#A9B5BB;
+  --f-display:"Unbounded", "Onest", system-ui, sans-serif;
+  --f-body:"Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0E151A; --surface:#161F26; --ink:#E5ECEF; --muted:#93A3AD; --line:#2A3741; --soft:#1D2830;
+  --accent:#6FA4F3; --accent-soft:#1B2C44; --dep:#E2A650; --dep-soft:#3A2D19;
+  --good:#5FBF8D; --good-soft:#173328; --bad:#E4796D; --bad-soft:#3D1F1C;
+  --c-doc:#7C9CC2; --c-cart:#D9A35A; --c-cons:#A79BCB; --c-tax:#8E9CA3; --c-acq:#5F6E76;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0E151A; --surface:#161F26; --ink:#E5ECEF; --muted:#93A3AD; --line:#2A3741; --soft:#1D2830;
+  --accent:#6FA4F3; --accent-soft:#1B2C44; --dep:#E2A650; --dep-soft:#3A2D19;
+  --good:#5FBF8D; --good-soft:#173328; --bad:#E4796D; --bad-soft:#3D1F1C;
+  --c-doc:#7C9CC2; --c-cart:#D9A35A; --c-cons:#A79BCB; --c-tax:#8E9CA3; --c-acq:#5F6E76;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;
+  padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px));padding-block:20px 40px;
+  font-variant-numeric:tabular-nums}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+h1{font-family:var(--f-display);font-weight:600;font-size:clamp(22px,3.2vw,30px);letter-spacing:-.01em;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:4px 0 0;max-width:62ch}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{font:inherit;font-weight:500;border:0;background:transparent;color:var(--muted);padding:7px 12px;border-radius:7px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.seg button:focus-visible,.chip:focus-visible,input:focus-visible,.reset:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seg-wrap{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.seg-label{font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+
+.grid{display:grid;grid-template-columns:1fr;gap:18px;align-items:start}
+@media (min-width:960px){ .grid{grid-template-columns:360px minmax(0,1fr)}
+  aside{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);max-height:calc(100vh - 24px);overflow:auto} }
+aside{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 16px 16px}
+aside h2{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 0 6px}
+.f{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-bottom:1px solid var(--soft)}
+.f:last-child{border-bottom:0}
+.f-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.f label{font-size:14px;min-width:0}
+.num{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.num input{width:96px;text-align:right;font:inherit;font-weight:600;color:var(--ink);background:var(--soft);border:1px solid transparent;border-radius:7px;padding:4px 8px}
+.num input:hover{border-color:var(--line)}
+.num span{font-size:13px;color:var(--muted);min-width:26px}
+input[type=range]{width:100%;accent-color:var(--accent);margin:2px 0}
+.hint{font-size:12px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:12px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:3px 9px;cursor:pointer}
+.chip:hover{background:var(--soft)}
+.reset{margin-top:14px;font:inherit;font-size:13px;color:var(--muted);background:transparent;border:1px dashed var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;width:100%}
+
+main{display:flex;flex-direction:column;gap:18px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;min-width:0}
+.card h3{margin:0 0 2px;font-size:17px;font-weight:600}
+.card .cap{margin:0 0 12px;color:var(--muted);font-size:13.5px}
+
+.verdict{display:flex;flex-direction:column;gap:14px}
+.vline{font-size:clamp(17px,2vw,20px);font-weight:500;max-width:60ch;text-wrap:balance;margin:0}
+.big{font-family:var(--f-display);font-weight:600;font-size:clamp(40px,6vw,64px);line-height:1;letter-spacing:-.02em}
+.vrow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 18px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:14px;padding:6px 12px;border-radius:999px}
+.pill.good{background:var(--good-soft);color:var(--good)} .pill.bad{background:var(--bad-soft);color:var(--bad)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.kpi{background:var(--soft);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi .k{font-size:12px;color:var(--muted);letter-spacing:.03em;text-transform:uppercase}
+.kpi .v{font-size:22px;font-weight:700}
+.kpi .s{font-size:13px;color:var(--muted)}
+
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13.5px;margin-bottom:8px}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.sw{width:18px;height:3px;border-radius:2px;display:inline-block}
+.chart{position:relative;width:100%}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.ax{font-size:11.5px;fill:var(--muted);font-family:var(--f-body)}
+.gridl{stroke:var(--line);stroke-width:1}
+.zero{stroke:var(--muted);stroke-width:1}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);font-size:12.5px;line-height:1.4;padding:7px 9px;border-radius:8px;white-space:nowrap;transform:translate(-50%,-100%);top:0;left:0}
+.tip[hidden]{display:none!important}
+
+.bar{display:flex;height:40px;border-radius:8px;overflow:hidden;margin:6px 0 10px}
+.bar div{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;min-width:0;overflow:hidden;white-space:nowrap}
+.blist{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px 18px;font-size:14px}
+.blist div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--soft);padding:4px 0}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:-1px}
+
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:440px}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--soft)}
+th:first-child,td:first-child{text-align:left}
+thead th{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.03em}
+th.cur{color:var(--accent)}
+td.ok{background:var(--good-soft);color:var(--good);font-weight:700}
+td.no{color:var(--muted)}
+td.cur{outline:2px solid var(--accent);outline-offset:-2px}
+
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;font-size:14px}
+.notes h4{margin:0 0 6px;font-size:14px}
+.notes ul{margin:0;padding-left:18px;color:var(--muted)}
+.notes li{margin:3px 0}
+.notes a{color:var(--accent)}
+@media (prefers-reduced-motion:no-preference){ .bar div{transition:width .25s ease} }
+</style>
+<style>html,body{margin:0}</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Окупаемость Virtue RF</h1>
+      <p class="sub">Аппарат против вклада: сколько процедур в месяц нужно продавать, чтобы покупка была выгоднее, чем просто положить деньги в банк.</p>
+    </div>
+    <div class="seg-wrap">
+      <span class="seg-label">Сравнить за срок</span>
+      <div class="seg" id="hz" role="group" aria-label="Срок сравнения"></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <aside id="panel" aria-label="Параметры расчёта"></aside>
+
+    <main>
+      <section class="card verdict" aria-live="polite">
+        <p class="vline" id="vline"></p>
+        <div class="vrow"><div class="big" id="vbig"></div><div id="vpill"></div></div>
+        <div class="kpis" id="kpis"></div>
+      </section>
+
+      <section class="card">
+        <h3>Деньги клиники: аппарат против вклада</h3>
+        <p class="cap" id="cap1"></p>
+        <div class="legend" id="leg1"></div>
+        <div class="chart" id="ch1"><div class="tip" id="tip1" hidden></div></div>
+      </section>
+
+      <section class="card">
+        <h3>Сколько процедур в месяц нужно при разной цене</h3>
+        <p class="cap">Линия показывает минимум процедур в месяц, чтобы выйти в ноль с вкладом. Зелёная зона под вашим планом: там аппарат выгоднее.</p>
+        <div class="legend" id="leg2"></div>
+        <div class="chart" id="ch2"><div class="tip" id="tip2" hidden></div></div>
+      </section>
+
+      <section class="card">
+        <h3>Куда уходит цена одной процедуры</h3>
+        <p class="cap" id="cap3"></p>
+        <div class="bar" id="bar"></div>
+        <div class="blist" id="blist"></div>
+      </section>
+
+      <section class="card">
+        <h3>Процедур в месяц для выхода в ноль</h3>
+        <p class="cap">Зелёным отмечено то, что укладывается в ваш план. Рамка — текущая цена и срок.</p>
+        <div class="tbl"><table id="tbl"></table></div>
+      </section>
+
+      <section class="card notes">
+        <div>
+          <h4>Откуда цена картриджа</h4>
+          <ul>
+            <li>Официальный магазин Cartessa (США): 20 картриджей Smart RF за $1 700, то есть $85 за штуку.</li>
+            <li>У перепродавцов в США: $80–105 за картридж Smart 36 pin.</li>
+            <li>Курс ЦБ на 15.10.2026: 83,95 ₽ за $. $85 ≈ 7 140 ₽.</li>
+            <li>НКК цену в РФ не публикует. По умолчанию взято 8 000 ₽ с запасом на ввоз (внутр.). Запросите прайс и впишите сюда.</li>
+          </ul>
+        </div>
+        <div>
+          <h4>Как считается</h4>
+          <ul>
+            <li>С процедуры клинике = цена − врач − картриджи − расходники − эквайринг − налог.</li>
+            <li>Вклад: свои деньги под ставку по годам, проценты каждый месяц добавляются к вкладу.</li>
+            <li>Аппарат: прибыль за месяц тоже кладётся на вклад; минус платёж и остаток по кредиту.</li>
+            <li>«В ноль» = к концу срока у клиники столько же денег, сколько дал бы вклад.</li>
+          </ul>
+        </div>
+        <div>
+          <h4>Не учтено</h4>
+          <ul>
+            <li>Аренда, реклама, сервис, если не вписаны в «Расходы в месяц».</li>
+            <li>Взносы с зарплаты врача (по вашему решению).</li>
+            <li>Рост цены картриджа вместе с курсом доллара.</li>
+            <li>Стоимость аппарата при продаже, если не задана.</li>
+          </ul>
+          <p style="margin:8px 0 0;font-size:12.5px"><a href="https://www.cartessastore.com/products/virtuerf-tips-for-smartrf-handpiece-20-tips" target="_blank" rel="noopener">Cartessa: Smart RF, 20 шт.</a> · <a href="https://cosmeticlaserexchange.com/products/sterile-micro-needle-cartridge" target="_blank" rel="noopener">Smart 36 pin</a> · <a href="https://www.vedomosti.ru/finance/news/2026/10/14/1237092-kurs-dollara" target="_blank" rel="noopener">курс ЦБ</a></p>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+(function(){
+const USD = 83.95;
+const F = [
+ {g:'Аппарат и продажи'},
+ {id:'cost', l:'Цена аппарата', min:1000000, max:6000000, step:5000, v:2665000, u:'₽'},
+ {id:'price', l:'Цена процедуры', min:10000, max:70000, step:500, v:25000, u:'₽', hint:'Екатеринбург: от 19 000 ₽ (JK Clinic); регионы 27–29 тыс.; Москва 35–40 тыс. за лицо', chips:[[20000,'20 000'],[25000,'25 000'],[30000,'30 000'],[35000,'35 000'],[40000,'40 000']]},
+ {id:'n', l:'Процедур в месяц (план)', min:0, max:60, step:1, v:10, u:'шт'},
+ {g:'Себестоимость одной процедуры'},
+ {id:'cart', l:'Картридж', min:0, max:15000, step:100, v:8000, u:'₽', hint:'Цена в США $80–105 за штуку. Уточнить у НКК', chips:[[Math.round(80*USD/50)*50,'$80'],[Math.round(85*USD/50)*50,'$85'],[Math.round(105*USD/50)*50,'$105'],[10000,'10 000 ₽']]},
+ {id:'cartPer', l:'Картриджей на процедуру', min:1, max:3, step:1, v:1, u:'шт', hint:'Лицо + шея + декольте может занять 2'},
+ {id:'cons', l:'Расходники: обезболивание, снятие макияжа, простынка, шапочка', min:0, max:5000, step:100, v:2000, u:'₽'},
+ {id:'doc', l:'Зарплата врача', min:0, max:50, step:1, v:30, u:'%'},
+ {id:'acq', l:'Эквайринг', min:0, max:3, step:0.1, v:1, u:'%'},
+ {id:'tax', l:'Налог', min:0, max:15, step:0.5, v:4, u:'%'},
+ {g:'Запуск и постоянные расходы'},
+ {id:'fixed', l:'Расходы в месяц на аппарат', min:0, max:150000, step:1000, v:0, u:'₽', hint:'Реклама, сервис, доля аренды'},
+ {id:'rampM', l:'Месяцев на раскрутку', min:0, max:6, step:1, v:0, u:'мес'},
+ {id:'rampP', l:'Загрузка в эти месяцы', min:0, max:100, step:10, v:50, u:'%', hint:'Доля от плана, пока клиенты только узнают'},
+ {id:'resid', l:'Продать аппарат в конце срока за', min:0, max:60, step:5, v:0, u:'%', hint:'Процент от цены покупки'},
+ {g:'Вклад'},
+ {id:'r1', l:'Ставка, 1-й год', min:0, max:25, step:0.25, v:13, u:'%', hint:'Средняя максимальная в топ-10 банков: 13,06 % (I декада октября)'},
+ {id:'r2', l:'Ставка, 2-й год', min:0, max:25, step:0.25, v:11, u:'%'},
+ {id:'r3', l:'Ставка, 3-й год и дальше', min:0, max:25, step:0.25, v:10, u:'%'},
+ {g:'Кредит'},
+ {id:'loan', l:'Доля кредита', min:0, max:100, step:10, v:0, u:'%', chips:[[0,'Все свои'],[50,'Половина в кредит'],[100,'Весь в кредит']]},
+ {id:'lr', l:'Ставка кредита', min:5, max:35, step:0.5, v:19, u:'%'},
+ {id:'lt', l:'Срок кредита', min:6, max:60, step:6, v:24, u:'мес'}
+];
+const HZ = [1,2,3,5];
+const KEY='virtue-calc-v2';
+const P = {}; let horizon = 3;
+F.forEach(f=>{ if(f.id) P[f.id]=f.v; });
+try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ Object.keys(P).forEach(k=>{ if(typeof s[k]==='number') P[k]=s[k]; }); if(HZ.includes(s.horizon)) horizon=s.horizon; } }catch(e){}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(Object.assign({horizon},P))); }catch(e){} }
+
+/* ---------- formatting ---------- */
+const nf0 = new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0});
+const nf2 = new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2});
+const rub = x => nf0.format(Math.round(x))+' ₽';
+function mln(x){ const a=Math.abs(x); if(a>=1e6) return (x/1e6).toLocaleString('ru-RU',{maximumFractionDigits:2,minimumFractionDigits:2})+' млн ₽'; if(a>=1e3) return nf0.format(Math.round(x/1e3))+' тыс ₽'; return rub(x); }
+const yrs = h => h===1?'1 год':(h<5?h+' года':h+' лет');
+const yrsGen = h => h===1?'1 год':(h<5?h+' года':h+' лет');
+function plural(n,a,b,c){ n=Math.abs(n)%100; const n1=n%10; if(n>10&&n<20) return c; if(n1>1&&n1<5) return b; if(n1===1) return a; return c; }
+
+/* ---------- model ---------- */
+function unit(p, price){
+  const doc=price*p.doc/100, cart=p.cart*p.cartPer, cons=p.cons, acq=price*p.acq/100, tax=price*p.tax/100;
+  return {doc,cart,cons,acq,tax,net:price-doc-cart-cons-acq-tax};
+}
+function rateM(p,m){ const y=Math.floor((m-1)/12); return (y===0?p.r1:y===1?p.r2:p.r3)/100/12; }
+function run(p, price, n, N){
+  const L=p.cost*p.loan/100, own=p.cost-L, iL=p.lr/100/12, T=p.lt;
+  const pmt = L>0 ? (iL>0 ? L*iL/(1-Math.pow(1+iL,-T)) : L/T) : 0;
+  const net=unit(p,price).net;
+  let dep=own, acc=0, bal=L; const s=[[0,dep,-L]];
+  for(let m=1;m<=N;m++){
+    const i=rateM(p,m); dep*=1+i; acc*=1+i;
+    const k = m<=p.rampM ? p.rampP/100 : 1;
+    let f = n*k*net - p.fixed;
+    if(bal>0.5 && m<=T){ const int=bal*iL; bal-=(pmt-int); f-=pmt; if(bal<0.5) bal=0; }
+    acc+=f; s.push([m,dep,acc-bal]);
+  }
+  const resid=p.cost*p.resid/100;
+  return {dep, app:acc-bal+resid, s, pmt, over:L>0?pmt*T-L:0, L, own, resid};
+}
+function need(p, price, N){
+  const a0=run(p,price,0,N), a1=run(p,price,1,N), slope=a1.app-a0.app;
+  if(slope<=0) return Infinity;
+  return Math.max(0,(a0.dep-a0.app)/slope);
+}
+function payback(p, price, n){
+  const net=unit(p,price).net; let acc=0;
+  for(let m=1;m<=240;m++){ const k=m<=p.rampM?p.rampP/100:1; acc+=n*k*net-p.fixed; if(acc>=p.cost) return m; }
+  return Infinity;
+}
+
+/* ---------- panel ---------- */
+const panel=document.getElementById('panel');
+const fmtField=(f,v)=> f.step<1 ? nf2.format(v) : nf0.format(v);
+F.forEach(f=>{
+  if(f.g){ const h=document.createElement('h2'); h.textContent=f.g; panel.appendChild(h); return; }
+  const d=document.createElement('div'); d.className='f';
+  d.innerHTML=`<div class="f-top"><label for="t-${f.id}">${f.l}</label><div class="num"><input id="t-${f.id}" type="text" inputmode="decimal" autocomplete="off"><span>${f.u}</span></div></div>
+  <input id="r-${f.id}" type="range" min="${f.min}" max="${f.max}" step="${f.step}" aria-label="${f.l}">`+
+  (f.chips?`<div class="chips">${f.chips.map(c=>`<button class="chip" type="button" data-v="${c[0]}">${c[1]}</button>`).join('')}</div>`:'')+
+  (f.hint?`<div class="hint">${f.hint}</div>`:'');
+  panel.appendChild(d);
+  const t=d.querySelector('#t-'+f.id), r=d.querySelector('#r-'+f.id);
+  const set=(v,src)=>{ if(!isFinite(v)) v=f.v; v=Math.min(f.max,Math.max(f.min,v)); P[f.id]=v; if(src!=='r') r.value=v; if(src!=='t'||true) t.value=fmtField(f,v); save(); render(); };
+  f._sync=()=>{ r.value=P[f.id]; t.value=fmtField(f,P[f.id]); };
+  r.addEventListener('input',()=>set(parseFloat(r.value),'r'));
+  t.addEventListener('change',()=>set(parseFloat(t.value.replace(/\s| /g,'').replace(',','.')),'t'));
+  t.addEventListener('keydown',e=>{ if(e.key==='Enter') t.blur(); });
+  d.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>set(parseFloat(b.dataset.v))));
+  f._sync();
+});
+const rb=document.createElement('button'); rb.className='reset'; rb.type='button'; rb.textContent='Вернуть исходные значения';
+rb.addEventListener('click',()=>{ F.forEach(f=>{ if(f.id){ P[f.id]=f.v; f._sync(); } }); horizon=3; save(); renderHz(); render(); });
+panel.appendChild(rb);
+
+const hz=document.getElementById('hz');
+function renderHz(){ hz.innerHTML=HZ.map(h=>`<button type="button" data-h="${h}" aria-pressed="${h===horizon}">${yrs(h)}</button>`).join('');
+  hz.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ horizon=+b.dataset.h; save(); renderHz(); render(); })); }
+renderHz();
+
+/* ---------- chart helpers ---------- */
+function ticks(min,max,count){ const span=(max-min)||1, s0=span/count, mag=Math.pow(10,Math.floor(Math.log10(s0))), e=s0/mag;
+  const st=(e>=7.5?10:e>=3.5?5:e>=1.5?2:1)*mag, lo=Math.floor(min/st)*st, hi=Math.ceil(max/st)*st, t=[];
+  for(let v=lo; v<=hi+st/2; v+=st) t.push(+v.toFixed(6)); return {lo,hi,t}; }
+const NS='http://www.w3.org/2000/svg';
+function svgEl(W,H){ const s=document.createElementNS(NS,'svg'); s.setAttribute('viewBox',`0 0 ${W} ${H}`); s.setAttribute('width',W); s.setAttribute('height',H); return s; }
+const esc = s => String(s);
+
+/* ---------- chart 1: growth lines ---------- */
+function drawGrowth(sim, N){
+  const box=document.getElementById('ch1'), tip=document.getElementById('tip1');
+  box.querySelectorAll('svg').forEach(s=>s.remove());
+  const W=Math.max(300,box.clientWidth||640), H=Math.round(Math.max(230,Math.min(330,W*0.46)));
+  const M={l:62,r:14,t:14,b:30}, iw=W-M.l-M.r, ih=H-M.t-M.b;
+  const s=sim.s, vals=s.flatMap(r=>[r[1],r[2]]);
+  const tk=ticks(Math.min(0,...vals),Math.max(...vals),5);
+  const X=m=>M.l+m/N*iw, Y=v=>M.t+(1-(v-tk.lo)/(tk.hi-tk.lo))*ih;
+  let g='';
+  tk.t.forEach(v=>{ g+=`<line class="${v===0?'zero':'gridl'}" x1="${M.l}" x2="${W-M.r}" y1="${Y(v)}" y2="${Y(v)}"/>`;
+    g+=`<text class="ax" x="${M.l-8}" y="${Y(v)+4}" text-anchor="end">${v===0?'0':(v/1e6).toLocaleString('ru-RU',{maximumFractionDigits:1})+' млн'}</text>`; });
+  const xs = N<=24?3:(N<=36?6:12);
+  for(let m=0;m<=N;m+=xs){ const lab = m===0?'старт': (m%12===0? yrs(m/12) : m+' мес');
+    g+=`<text class="ax" x="${X(m)}" y="${H-8}" text-anchor="${m===0?'start':(m===N?'end':'middle')}">${lab}</text>`; }
+  // fill between lines
+  let fill='';
+  for(let i=0;i<s.length-1;i++){ const a=s[i], b=s[i+1]; const d=(a[2]-a[1])+(b[2]-b[1]);
+    fill+=`<polygon points="${X(a[0])},${Y(a[1])} ${X(b[0])},${Y(b[1])} ${X(b[0])},${Y(b[2])} ${X(a[0])},${Y(a[2])}" fill="var(${d>=0?'--good':'--bad'})" fill-opacity=".13" stroke="none"/>`; }
+  const path=(k)=>s.map((r,i)=>(i?'L':'M')+X(r[0]).toFixed(1)+','+Y(r[k]).toFixed(1)).join('');
+  g+=fill;
+  g+=`<path d="${path(1)}" fill="none" stroke="var(--dep)" stroke-width="2.5" stroke-linejoin="round"/>`;
+  g+=`<path d="${path(2)}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round"/>`;
+  // crossing
+  let cross=null; for(let i=1;i<s.length;i++){ if(s[i][2]>=s[i][1] && s[i-1][2]<s[i-1][1]){ cross=s[i]; break; } }
+  if(cross){ const cx=X(cross[0]), cy=Y(cross[2]);
+    g+=`<line x1="${cx}" x2="${cx}" y1="${M.t}" y2="${M.t+ih}" stroke="var(--good)" stroke-dasharray="3 4"/>`;
+    g+=`<circle cx="${cx}" cy="${cy}" r="5.5" fill="var(--surface)" stroke="var(--good)" stroke-width="2.5"/>`;
+    const lab=`догнал вклад: ${cross[0]} мес`; const anc = cx>W*0.7?'end':'start';
+    g+=`<text class="ax" x="${cx+(anc==='end'?-8:8)}" y="${M.t+12}" text-anchor="${anc}" style="fill:var(--good);font-weight:600">${lab}</text>`; }
+  // endpoints
+  const e=s[s.length-1];
+  g+=`<circle cx="${X(e[0])}" cy="${Y(e[1])}" r="4" fill="var(--dep)"/><circle cx="${X(e[0])}" cy="${Y(e[2])}" r="4.5" fill="var(--accent)"/>`;
+  g+=`<line id="hl1" x1="0" x2="0" y1="${M.t}" y2="${M.t+ih}" stroke="var(--muted)" stroke-width="1" visibility="hidden"/>`;
+  g+=`<rect x="${M.l}" y="${M.t}" width="${iw}" height="${ih}" fill="transparent" id="ov1"/>`;
+  const svg=svgEl(W,H); svg.innerHTML=g; box.appendChild(svg);
+  const hl=svg.querySelector('#hl1'), ov=svg.querySelector('#ov1');
+  const move=ev=>{ const r=svg.getBoundingClientRect(), sc=W/r.width; const px=(ev.clientX-r.left)*sc;
+    const m=Math.max(0,Math.min(N,Math.round((px-M.l)/iw*N))); const row=s[m];
+    hl.setAttribute('x1',X(m)); hl.setAttribute('x2',X(m)); hl.setAttribute('visibility','visible');
+    const diff=row[2]-row[1];
+    tip.innerHTML=`<b>${m===0?'Старт':m+' мес'}</b><br>Вклад: ${mln(row[1])}<br>Аппарат: ${mln(row[2])}<br>${diff>=0?'Аппарат впереди':'Вклад впереди'} на ${mln(Math.abs(diff))}`;
+    tip.hidden=false; const tx=X(m)/sc; tip.style.left=Math.min(Math.max(tx,90),r.width-90)+'px'; tip.style.top=(Math.min(Y(row[1]),Y(row[2]))/sc-10)+'px'; };
+  ov.addEventListener('pointermove',move); ov.addEventListener('pointerdown',move);
+  ov.addEventListener('pointerleave',()=>{ tip.hidden=true; hl.setAttribute('visibility','hidden'); });
+  return cross;
+}
+
+/* ---------- chart 2: need vs price ---------- */
+function drawNeed(){
+  const box=document.getElementById('ch2'), tip=document.getElementById('tip2');
+  box.querySelectorAll('svg').forEach(s=>s.remove());
+  const W=Math.max(300,box.clientWidth||640), H=Math.round(Math.max(230,Math.min(330,W*0.46)));
+  const M={l:44,r:14,t:14,b:30}, iw=W-M.l-M.r, ih=H-M.t-M.b;
+  const pMin=15000, pMax=60000, step=1000, yMax=Math.max(40, Math.ceil(P.n*1.6/10)*10);
+  const X=v=>M.l+(v-pMin)/(pMax-pMin)*iw, Y=v=>M.t+(1-Math.min(v,yMax*1.05)/yMax)*ih;
+  const lines={}; HZ.forEach(h=>{ const pts=[]; for(let pr=pMin;pr<=pMax;pr+=step){ pts.push([pr,need(P,pr,h*12)]); } lines[h]=pts; });
+  let g=`<defs><clipPath id="clp"><rect x="${M.l}" y="${M.t}" width="${iw}" height="${ih}"/></clipPath></defs>`;
+  const yt=ticks(0,yMax,5);
+  yt.t.filter(v=>v<=yMax).forEach(v=>{ g+=`<line class="${v===0?'zero':'gridl'}" x1="${M.l}" x2="${W-M.r}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${M.l-8}" y="${Y(v)+4}" text-anchor="end">${v}</text>`; });
+  for(let pr=pMin;pr<=pMax;pr+=5000){ g+=`<text class="ax" x="${X(pr)}" y="${H-8}" text-anchor="${pr===pMin?'start':(pr===pMax?'end':'middle')}">${pr/1000}${pr===pMax?' тыс ₽':''}</text>`; }
+  // good zone under plan
+  g+=`<rect x="${M.l}" y="${Y(P.n)}" width="${iw}" height="${Math.max(0,M.t+ih-Y(P.n))}" fill="var(--good)" fill-opacity=".09"/>`;
+  g+=`<g clip-path="url(#clp)">`;
+  HZ.forEach(h=>{ const sel=h===horizon; const pts=lines[h].filter(p=>isFinite(p[1]));
+    if(!pts.length) return;
+    const d=pts.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)).join('');
+    g+=`<path d="${d}" fill="none" stroke="var(${sel?'--accent':'--muted'})" stroke-width="${sel?3:1.4}" stroke-opacity="${sel?1:.55}" ${sel?'':'stroke-dasharray="5 4"'}/>`; });
+  g+=`</g>`;
+  // plan line
+  g+=`<line x1="${M.l}" x2="${W-M.r}" y1="${Y(P.n)}" y2="${Y(P.n)}" stroke="var(--good)" stroke-width="2"/>`;
+  g+=`<text class="ax" x="${W-M.r-4}" y="${Y(P.n)-6}" text-anchor="end" style="fill:var(--good);font-weight:600">ваш план: ${P.n} в месяц</text>`;
+  // current price marker
+  if(P.price>=pMin && P.price<=pMax){
+    const nd=need(P,P.price,horizon*12), cx=X(P.price);
+    g+=`<line x1="${cx}" x2="${cx}" y1="${M.t}" y2="${M.t+ih}" stroke="var(--ink)" stroke-opacity=".35" stroke-dasharray="2 4"/>`;
+    if(isFinite(nd)){ const cy=Y(nd), lbl=nd>yMax?`нужно ${Math.ceil(nd)} (выше графика)`:`нужно ${Math.ceil(nd)}`;
+      g+=`<circle cx="${cx}" cy="${Math.max(cy,M.t)}" r="6" fill="var(--surface)" stroke="var(--accent)" stroke-width="3"/>`;
+      const anc=cx>W*0.7?'end':'start';
+      g+=`<text x="${cx+(anc==='end'?-10:10)}" y="${Math.max(cy,M.t)-8}" text-anchor="${anc}" style="fill:var(--accent);font-weight:700;font-size:13px;font-family:var(--f-body)">${lbl}</text>`; }
+  }
+  g+=`<line id="hl2" x1="0" x2="0" y1="${M.t}" y2="${M.t+ih}" stroke="var(--muted)" visibility="hidden"/>`;
+  g+=`<rect x="${M.l}" y="${M.t}" width="${iw}" height="${ih}" fill="transparent" id="ov2"/>`;
+  const svg=svgEl(W,H); svg.innerHTML=g; box.appendChild(svg);
+  const hl=svg.querySelector('#hl2'), ov=svg.querySelector('#ov2');
+  const move=ev=>{ const r=svg.getBoundingClientRect(), sc=W/r.width, px=(ev.clientX-r.left)*sc;
+    let pr=Math.round((pMin+(px-M.l)/iw*(pMax-pMin))/step)*step; pr=Math.max(pMin,Math.min(pMax,pr));
+    hl.setAttribute('x1',X(pr)); hl.setAttribute('x2',X(pr)); hl.setAttribute('visibility','visible');
+    const idx=(pr-pMin)/step;
+    tip.innerHTML=`<b>Цена ${nf0.format(pr)} ₽</b><br>`+HZ.map(h=>{ const v=lines[h][idx][1]; return `${yrs(h)}: ${isFinite(v)?Math.ceil(v)+' в мес':'убыток'}`; }).join('<br>');
+    tip.hidden=false; tip.style.left=Math.min(Math.max(X(pr)/sc,80),r.width-80)+'px'; tip.style.top=(M.t/sc+70)+'px'; };
+  ov.addEventListener('pointermove',move); ov.addEventListener('pointerdown',move);
+  ov.addEventListener('pointerleave',()=>{ tip.hidden=true; hl.setAttribute('visibility','hidden'); });
+  document.getElementById('leg2').innerHTML = HZ.map(h=>`<span style="${h===horizon?'font-weight:600':''}"><i class="sw" style="background:var(${h===horizon?'--accent':'--muted'});${h===horizon?'':'opacity:.6'}"></i>за ${yrs(h)}</span>`).join('')+`<span><i class="sw" style="background:var(--good)"></i>ваш план</span>`;
+}
+
+/* ---------- render ---------- */
+function render(){
+  const N=horizon*12, u=unit(P,P.price), sim=run(P,P.price,P.n,N), nd=need(P,P.price,N);
+  const diff=sim.app-sim.dep, pb=payback(P,P.price,P.n);
+  // verdict
+  const vline=document.getElementById('vline'), vbig=document.getElementById('vbig'), vpill=document.getElementById('vpill');
+  if(!isFinite(nd)){
+    vline.textContent=`При цене ${rub(P.price)} процедура убыточна или не перекрывает расходы: себестоимость выше цены.`;
+    vbig.textContent='—'; vpill.innerHTML=`<span class="pill bad">Поднимите цену или снизьте себестоимость</span>`;
+  } else {
+    const k=Math.ceil(nd);
+    vline.innerHTML=`Чтобы за ${yrsGen(horizon)} выйти в ноль с вкладом, при цене ${rub(P.price)} нужно продавать`;
+    vbig.innerHTML=`${k} <span style="font-size:.4em;font-family:var(--f-body);font-weight:600;letter-spacing:0">${plural(k,'процедуру','процедуры','процедур')} в месяц</span>`;
+    vpill.innerHTML = diff>=0
+      ? `<span class="pill good">План ${P.n}/мес: аппарат выгоднее вклада на ${mln(diff)}</span>`
+      : `<span class="pill bad">План ${P.n}/мес: вклад выгоднее на ${mln(-diff)}</span>`;
+  }
+  const pbProc = u.net>0 ? Math.ceil(P.cost/u.net) : Infinity;
+  const k=[
+    {k:'Клинике с процедуры', v:rub(u.net), s:`${Math.round(u.net/P.price*100)} % от цены ${rub(P.price)}`},
+    {k:'Окупаемость аппарата', v:isFinite(pbProc)?`${nf0.format(pbProc)} ${plural(pbProc,'процедура','процедуры','процедур')}`:'не окупается', s:isFinite(pb)?`≈ ${pb} мес при плане ${P.n}/мес${pb>36?' ('+(pb/12).toLocaleString('ru-RU',{maximumFractionDigits:1})+' г.)':''}`:(P.n>0?'больше 20 лет':'план 0 процедур')},
+    {k:`Через ${yrsGen(horizon)}`, v:`${mln(sim.app)}`, s:`у аппарата · вклад дал бы ${mln(sim.dep)}`}
+  ];
+  if(sim.L>0){ const cover = u.net>0? Math.ceil((sim.pmt+P.fixed)/u.net):Infinity;
+    k.push({k:'Платёж по кредиту', v:rub(sim.pmt)+'/мес', s:`покрывают ${isFinite(cover)?cover:'—'} проц./мес · переплата ${mln(sim.over)}`}); }
+  else k.push({k:'Деньги', v:'все свои', s:`${mln(P.cost)} уходят с вклада`});
+  document.getElementById('kpis').innerHTML=k.map(x=>`<div class="kpi"><span class="k">${x.k}</span><span class="v">${x.v}</span><span class="s">${x.s}</span></div>`).join('');
+
+  // chart 1
+  document.getElementById('cap1').textContent = sim.L>0
+    ? `Синяя линия: сколько клиника заработала на аппарате за вычетом долга по кредиту. Оранжевая: свои ${mln(sim.own)} на вкладе. План ${P.n} процедур в месяц.`
+    : `Синяя линия: сколько клиника заработала на аппарате (стартует с нуля, деньги ушли на покупку). Оранжевая: те же ${mln(P.cost)} на вкладе. План ${P.n} процедур в месяц.`;
+  document.getElementById('leg1').innerHTML=`<span><i class="sw" style="background:var(--accent)"></i>Аппарат: ${mln(sim.app)}${sim.resid>0?' (с продажей)':''}</span><span><i class="sw" style="background:var(--dep)"></i>Вклад: ${mln(sim.dep)}</span><span><i class="sw" style="background:var(--good);opacity:.4;height:10px"></i>аппарат впереди</span><span><i class="sw" style="background:var(--bad);opacity:.4;height:10px"></i>вклад впереди</span>`;
+  drawGrowth(sim,N);
+  drawNeed();
+
+  // breakdown
+  const parts=[['Врач',u.doc,'--c-doc'],['Картридж'+(P.cartPer>1?' ×'+P.cartPer:''),u.cart,'--c-cart'],['Расходники',u.cons,'--c-cons'],['Налог',u.tax,'--c-tax'],['Эквайринг',u.acq,'--c-acq']];
+  const costs=parts.reduce((a,p)=>a+p[1],0), base=Math.max(P.price,costs);
+  let bar=parts.map(p=>`<div style="width:${p[1]/base*100}%;background:var(${p[2]})" title="${p[0]}: ${rub(p[1])}">${p[1]/base>0.09?p[0]:''}</div>`).join('');
+  bar+= u.net>0 ? `<div style="width:${u.net/base*100}%;background:var(--good)" title="Клинике: ${rub(u.net)}">${u.net/base>0.09?'Клинике':''}</div>` : '';
+  document.getElementById('bar').innerHTML=bar;
+  document.getElementById('cap3').textContent=`Из ${rub(P.price)} себестоимость забирает ${rub(costs)} (${Math.round(costs/P.price*100)} %). Картридж — ${Math.round(u.cart/P.price*100)} % цены.`;
+  document.getElementById('blist').innerHTML=parts.map(p=>`<div><span><i class="dot" style="background:var(${p[2]})"></i>${p[0]}</span><b>${rub(p[1])}</b></div>`).join('')+
+    `<div><span><i class="dot" style="background:var(${u.net>0?'--good':'--bad'})"></i>${u.net>0?'Остаётся клинике':'Убыток'}</span><b style="color:var(${u.net>0?'--good':'--bad'})">${rub(u.net)}</b></div>`;
+
+  // table
+  let prices=[20000,25000,30000,35000,40000]; if(!prices.includes(P.price)) prices=prices.concat([P.price]).sort((a,b)=>a-b);
+  let t=`<thead><tr><th>Срок</th>${prices.map(p=>`<th class="${p===P.price?'cur':''}">${nf0.format(p)} ₽</th>`).join('')}</tr></thead><tbody>`;
+  HZ.forEach(h=>{ t+=`<tr><td>${yrs(h)}</td>`+prices.map(p=>{ const v=need(P,p,h*12); const c=Math.ceil(v);
+    const cls=[isFinite(v)&&c<=P.n?'ok':'no', (p===P.price&&h===horizon)?'cur':''].join(' ');
+    return `<td class="${cls}">${isFinite(v)?c:'убыток'}</td>`; }).join('')+`</tr>`; });
+  t+=`<tr><td style="color:var(--muted)">С процедуры клинике</td>`+prices.map(p=>`<td style="color:var(--muted)">${rub(unit(P,p).net)}</td>`).join('')+`</tr></tbody>`;
+  document.getElementById('tbl').innerHTML=t;
+}
+render();
+let rt, lastW=document.getElementById('ch1').clientWidth; const ro=(window.ResizeObserver? new ResizeObserver(()=>{ const w=document.getElementById('ch1').clientWidth; if(Math.abs(w-lastW)<2) return; lastW=w; clearTimeout(rt); rt=setTimeout(render,80); }) : null);
+if(ro) ro.observe(document.getElementById('ch1')); else window.addEventListener('resize',()=>{clearTimeout(rt); rt=setTimeout(render,120);});
+})();
+</script>
+
+</body>
+</html>
