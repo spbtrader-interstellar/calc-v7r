@@ -44,6 +44,10 @@ h1{font-family:var(--f-display);font-weight:600;font-size:clamp(22px,3.2vw,30px)
 .seg button{font:inherit;font-weight:500;border:0;background:transparent;color:var(--muted);padding:7px 12px;border-radius:7px;cursor:pointer}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
 .seg button:focus-visible,.chip:focus-visible,input:focus-visible,.reset:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seg-sm{display:flex;width:100%}
+.seg-sm button{flex:1 1 0;padding:6px 8px;font-size:13px}
+.vloan{margin:0;font-size:14.5px;color:var(--muted);max-width:70ch}
+.vloan b{color:var(--ink)}
 .seg-wrap{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
 .seg-label{font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
 
@@ -142,6 +146,7 @@ td.cur{outline:2px solid var(--accent);outline-offset:-2px}
       <section class="card verdict" aria-live="polite">
         <p class="vline" id="vline"></p>
         <div class="vrow"><div class="big" id="vbig"></div><div id="vpill"></div></div>
+        <p class="vloan" id="vloan" hidden></p>
         <div class="kpis" id="kpis"></div>
       </section>
 
@@ -187,7 +192,8 @@ td.cur{outline:2px solid var(--accent);outline-offset:-2px}
           <ul>
             <li>С процедуры клинике = цена − врач − картриджи − расходники − эквайринг − налог.</li>
             <li>Вклад: свои деньги под ставку по годам, проценты каждый месяц добавляются к вкладу.</li>
-            <li>Аппарат: прибыль за месяц тоже кладётся на вклад; минус платёж и остаток по кредиту.</li>
+            <li>Кредит: проценты начисляются на остаток каждый месяц. Платёж по графику обязателен; при «досрочно» вся остальная прибыль тоже идёт в кредит, пока он не закрыт.</li>
+            <li>Аппарат: прибыль, оставшаяся после кредита, кладётся на вклад; в конце вычитается остаток долга.</li>
             <li>«В ноль» = к концу срока у клиники столько же денег, сколько дал бы вклад.</li>
           </ul>
         </div>
@@ -213,7 +219,7 @@ const F = [
  {g:'Аппарат и продажи'},
  {id:'cost', l:'Цена аппарата', min:1000000, max:6000000, step:5000, v:2665000, u:'₽'},
  {id:'price', l:'Цена процедуры', min:10000, max:70000, step:500, v:25000, u:'₽', hint:'Екатеринбург: от 19 000 ₽ (JK Clinic); регионы 27–29 тыс.; Москва 35–40 тыс. за лицо', chips:[[20000,'20 000'],[25000,'25 000'],[30000,'30 000'],[35000,'35 000'],[40000,'40 000']]},
- {id:'n', l:'Процедур в месяц (план)', min:0, max:60, step:1, v:10, u:'шт'},
+ {id:'n', l:'Процедур в месяц (план)', min:0, max:60, step:1, v:15, u:'шт'},
  {g:'Себестоимость одной процедуры'},
  {id:'cart', l:'Картридж', min:0, max:15000, step:100, v:8000, u:'₽', hint:'Цена в США $80–105 за штуку. Уточнить у НКК', chips:[[Math.round(80*USD/50)*50,'$80'],[Math.round(85*USD/50)*50,'$85'],[Math.round(105*USD/50)*50,'$105'],[10000,'10 000 ₽']]},
  {id:'cartPer', l:'Картриджей на процедуру', min:1, max:3, step:1, v:1, u:'шт', hint:'Лицо + шея + декольте может занять 2'},
@@ -231,12 +237,13 @@ const F = [
  {id:'r2', l:'Ставка, 2-й год', min:0, max:25, step:0.25, v:11, u:'%'},
  {id:'r3', l:'Ставка, 3-й год и дальше', min:0, max:25, step:0.25, v:10, u:'%'},
  {g:'Кредит'},
- {id:'loan', l:'Доля кредита', min:0, max:100, step:10, v:0, u:'%', chips:[[0,'Все свои'],[50,'Половина в кредит'],[100,'Весь в кредит']]},
+ {id:'loanAmt', l:'Сумма кредита', min:0, max:6000000, step:50000, v:1000000, u:'₽', hint:'Остальное — свои деньги, которые иначе лежали бы на вкладе', chips:[[0,'Без кредита'],[1000000,'1 млн'],[1332500,'Половина'],[2665000,'Весь аппарат']]},
  {id:'lr', l:'Ставка кредита', min:5, max:35, step:0.5, v:19, u:'%'},
- {id:'lt', l:'Срок кредита', min:6, max:60, step:6, v:24, u:'мес'}
+ {id:'lt', l:'Срок кредита по договору', min:6, max:60, step:6, v:12, u:'мес', chips:[[12,'12 мес'],[24,'24 мес'],[36,'36 мес']], hint:'Платёж по графику — равными суммами на этот срок'},
+ {id:'lmode', l:'Как гасим', v:0, seg:[[0,'Досрочно всей прибылью'],[1,'Только по графику']], hint:'«Досрочно»: платим по графику, а всю остальную прибыль тоже отдаём в кредит, пока он не закрыт. Потом прибыль остаётся клинике'}
 ];
 const HZ = [1,2,3,5];
-const KEY='virtue-calc-v2';
+const KEY='virtue-calc-v3';
 const P = {}; let horizon = 3;
 F.forEach(f=>{ if(f.id) P[f.id]=f.v; });
 try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s){ Object.keys(P).forEach(k=>{ if(typeof s[k]==='number') P[k]=s[k]; }); if(HZ.includes(s.horizon)) horizon=s.horizon; } }catch(e){}
@@ -257,25 +264,37 @@ function unit(p, price){
   return {doc,cart,cons,acq,tax,net:price-doc-cart-cons-acq-tax};
 }
 function rateM(p,m){ const y=Math.floor((m-1)/12); return (y===0?p.r1:y===1?p.r2:p.r3)/100/12; }
+/* Кредит: L рублей, остальное — свои деньги (их альтернатива — вклад).
+   Платёж по графику — аннуитет на lt месяцев; если прибыли на него не хватает, клиника доплачивает из своих.
+   lmode 0: сверх графика вся остальная прибыль месяца идёт в досрочное погашение, пока долг не закрыт; потом прибыль копится у клиники.
+   lmode 1: только по графику, остаток прибыли сразу у клиники. */
 function run(p, price, n, N){
-  const L=p.cost*p.loan/100, own=p.cost-L, iL=p.lr/100/12, T=p.lt;
+  const L=Math.min(p.loanAmt,p.cost), own=p.cost-L, iL=p.lr/100/12, T=p.lt, ann=p.lmode===1;
   const pmt = L>0 ? (iL>0 ? L*iL/(1-Math.pow(1+iL,-T)) : L/T) : 0;
   const net=unit(p,price).net;
-  let dep=own, acc=0, bal=L; const s=[[0,dep,-L]];
+  let dep=own, acc=0, bal=L, paid=0, payoff=L>0?null:0; const s=[[0,dep,-L,L]];
   for(let m=1;m<=N;m++){
     const i=rateM(p,m); dep*=1+i; acc*=1+i;
     const k = m<=p.rampM ? p.rampP/100 : 1;
     let f = n*k*net - p.fixed;
-    if(bal>0.5 && m<=T){ const int=bal*iL; bal-=(pmt-int); f-=pmt; if(bal<0.5) bal=0; }
-    acc+=f; s.push([m,dep,acc-bal]);
+    if(bal>0.5){
+      bal += bal*iL;
+      const pay = Math.min(ann ? pmt : Math.max(pmt,f), bal);
+      bal-=pay; f-=pay; paid+=pay;
+      if(bal<=0.5){ bal=0; if(payoff===null) payoff=m; }
+    }
+    acc+=f; s.push([m,dep,acc-bal,bal]);
   }
   const resid=p.cost*p.resid/100;
-  return {dep, app:acc-bal+resid, s, pmt, over:L>0?pmt*T-L:0, L, own, resid};
+  return {dep, app:acc-bal+resid, s, pmt, L, own, resid, bal, paid, payoff, interest:paid-(L-bal)};
 }
 function need(p, price, N){
-  const a0=run(p,price,0,N), a1=run(p,price,1,N), slope=a1.app-a0.app;
-  if(slope<=0) return Infinity;
-  return Math.max(0,(a0.dep-a0.app)/slope);
+  if(unit(p,price).net<=0) return Infinity;
+  const ok=n=>{ const r=run(p,price,n,N); return r.app>=r.dep; };
+  if(ok(0)) return 0;
+  let lo=0, hi=4; while(!ok(hi)){ lo=hi; hi*=2; if(hi>4000) return Infinity; }
+  for(let k=0;k<28;k++){ const mid=(lo+hi)/2; if(ok(mid)) hi=mid; else lo=mid; }
+  return hi;
 }
 function payback(p, price, n){
   const net=unit(p,price).net; let acc=0;
@@ -288,6 +307,15 @@ const panel=document.getElementById('panel');
 const fmtField=(f,v)=> f.step<1 ? nf2.format(v) : nf0.format(v);
 F.forEach(f=>{
   if(f.g){ const h=document.createElement('h2'); h.textContent=f.g; panel.appendChild(h); return; }
+  if(f.seg){
+    const d=document.createElement('div'); d.className='f';
+    d.innerHTML=`<div class="f-top"><span>${f.l}</span></div><div class="seg seg-sm" role="group" aria-label="${f.l}">${f.seg.map(o=>`<button type="button" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>`+(f.hint?`<div class="hint">${f.hint}</div>`:'');
+    panel.appendChild(d);
+    const bs=[...d.querySelectorAll('button')];
+    f._sync=()=>bs.forEach(b=>b.setAttribute('aria-pressed', String(+b.dataset.v===P[f.id])));
+    bs.forEach(b=>b.addEventListener('click',()=>{ P[f.id]=+b.dataset.v; f._sync(); save(); render(); }));
+    f._sync(); return;
+  }
   const d=document.createElement('div'); d.className='f';
   d.innerHTML=`<div class="f-top"><label for="t-${f.id}">${f.l}</label><div class="num"><input id="t-${f.id}" type="text" inputmode="decimal" autocomplete="off"><span>${f.u}</span></div></div>
   <input id="r-${f.id}" type="range" min="${f.min}" max="${f.max}" step="${f.step}" aria-label="${f.l}">`+
@@ -326,7 +354,7 @@ function drawGrowth(sim, N){
   box.querySelectorAll('svg').forEach(s=>s.remove());
   const W=Math.max(300,box.clientWidth||640), H=Math.round(Math.max(230,Math.min(330,W*0.46)));
   const M={l:62,r:14,t:14,b:30}, iw=W-M.l-M.r, ih=H-M.t-M.b;
-  const s=sim.s, vals=s.flatMap(r=>[r[1],r[2]]);
+  const s=sim.s, vals=s.flatMap(r=>[r[1],r[2],r[3]]);
   const tk=ticks(Math.min(0,...vals),Math.max(...vals),5);
   const X=m=>M.l+m/N*iw, Y=v=>M.t+(1-(v-tk.lo)/(tk.hi-tk.lo))*ih;
   let g='';
@@ -350,6 +378,13 @@ function drawGrowth(sim, N){
     g+=`<circle cx="${cx}" cy="${cy}" r="5.5" fill="var(--surface)" stroke="var(--good)" stroke-width="2.5"/>`;
     const lab=`догнал вклад: ${cross[0]} мес`; const anc = cx>W*0.7?'end':'start';
     g+=`<text class="ax" x="${cx+(anc==='end'?-8:8)}" y="${M.t+12}" text-anchor="${anc}" style="fill:var(--good);font-weight:600">${lab}</text>`; }
+  // loan balance + payoff
+  if(sim.L>0){
+    g+=`<path d="${s.map((r,i)=>(i?'L':'M')+X(r[0]).toFixed(1)+','+Y(r[3]).toFixed(1)).join('')}" fill="none" stroke="var(--bad)" stroke-width="2" stroke-dasharray="6 4"/>`;
+    if(sim.payoff){ const px=X(sim.payoff), anc=px>W*0.7?'end':'start';
+      g+=`<circle cx="${px}" cy="${Y(0)}" r="5" fill="var(--bad)"/>`;
+      g+=`<text class="ax" x="${px+(anc==='end'?-8:8)}" y="${Y(0)+18}" text-anchor="${anc}" style="fill:var(--bad);font-weight:600">кредит закрыт: ${sim.payoff} мес</text>`; }
+  }
   // endpoints
   const e=s[s.length-1];
   g+=`<circle cx="${X(e[0])}" cy="${Y(e[1])}" r="4" fill="var(--dep)"/><circle cx="${X(e[0])}" cy="${Y(e[2])}" r="4.5" fill="var(--accent)"/>`;
@@ -361,7 +396,7 @@ function drawGrowth(sim, N){
     const m=Math.max(0,Math.min(N,Math.round((px-M.l)/iw*N))); const row=s[m];
     hl.setAttribute('x1',X(m)); hl.setAttribute('x2',X(m)); hl.setAttribute('visibility','visible');
     const diff=row[2]-row[1];
-    tip.innerHTML=`<b>${m===0?'Старт':m+' мес'}</b><br>Вклад: ${mln(row[1])}<br>Аппарат: ${mln(row[2])}<br>${diff>=0?'Аппарат впереди':'Вклад впереди'} на ${mln(Math.abs(diff))}`;
+    tip.innerHTML=`<b>${m===0?'Старт':m+' мес'}</b><br>Вклад: ${mln(row[1])}<br>Аппарат: ${mln(row[2])}${sim.L>0?'<br>Долг по кредиту: '+mln(row[3]):''}<br>${diff>=0?'Аппарат впереди':'Вклад впереди'} на ${mln(Math.abs(diff))}`;
     tip.hidden=false; const tx=X(m)/sc; tip.style.left=Math.min(Math.max(tx,90),r.width-90)+'px'; tip.style.top=(Math.min(Y(row[1]),Y(row[2]))/sc-10)+'px'; };
   ov.addEventListener('pointermove',move); ov.addEventListener('pointerdown',move);
   ov.addEventListener('pointerleave',()=>{ tip.hidden=true; hl.setAttribute('visibility','hidden'); });
@@ -439,16 +474,25 @@ function render(){
     {k:'Окупаемость аппарата', v:isFinite(pbProc)?`${nf0.format(pbProc)} ${plural(pbProc,'процедура','процедуры','процедур')}`:'не окупается', s:isFinite(pb)?`≈ ${pb} мес при плане ${P.n}/мес${pb>36?' ('+(pb/12).toLocaleString('ru-RU',{maximumFractionDigits:1})+' г.)':''}`:(P.n>0?'больше 20 лет':'план 0 процедур')},
     {k:`Через ${yrsGen(horizon)}`, v:`${mln(sim.app)}`, s:`у аппарата · вклад дал бы ${mln(sim.dep)}`}
   ];
-  if(sim.L>0){ const cover = u.net>0? Math.ceil((sim.pmt+P.fixed)/u.net):Infinity;
-    k.push({k:'Платёж по кредиту', v:rub(sim.pmt)+'/мес', s:`покрывают ${isFinite(cover)?cover:'—'} проц./мес · переплата ${mln(sim.over)}`}); }
-  else k.push({k:'Деньги', v:'все свои', s:`${mln(P.cost)} уходят с вклада`});
+  const vl=document.getElementById('vloan');
+  if(sim.L>0){
+    const li=run(P,P.price,P.n,240), cover=u.net>0?Math.ceil((sim.pmt+P.fixed)/u.net):Infinity;
+    const pm=li.payoff, early = pm && pm<P.lt;
+    k.push({k:`Кредит ${mln(sim.L)}`, v: pm?`закрыт за ${pm} мес`:'не гасится', s:`по договору ${P.lt} мес · платёж ${rub(sim.pmt)}/мес · переплата ${pm?mln(li.interest):'—'}`});
+    vl.hidden=false;
+    vl.innerHTML = !pm ? `Прибыли не хватает даже на проценты: кредит ${mln(sim.L)} не гасится. Нужно больше процедур или выше цена.`
+      : (isFinite(cover)&&cover>P.n ? `Платёж по графику ${rub(sim.pmt)} покрывают <b>${cover} процедур</b> в месяц, а в плане ${P.n}: разницу клиника доплачивает из своих. ` : '')
+      + (P.lmode===0
+        ? `Первые <b>${pm} мес</b> вся прибыль с аппарата идёт в кредит (проценты и тело)${early?`, это на ${P.lt-pm} мес раньше договора`:''}. Переплата <b>${mln(li.interest)}</b>. С ${pm+1}-го месяца прибыль остаётся клинике.`
+        : `Платим по графику ${rub(sim.pmt)} в месяц ${pm} мес, переплата <b>${mln(li.interest)}</b>. Остальная прибыль сразу у клиники.`);
+  } else { vl.hidden=true; k.push({k:'Деньги', v:'все свои', s:`${mln(P.cost)} уходят с вклада`}); }
   document.getElementById('kpis').innerHTML=k.map(x=>`<div class="kpi"><span class="k">${x.k}</span><span class="v">${x.v}</span><span class="s">${x.s}</span></div>`).join('');
 
   // chart 1
   document.getElementById('cap1').textContent = sim.L>0
-    ? `Синяя линия: сколько клиника заработала на аппарате за вычетом долга по кредиту. Оранжевая: свои ${mln(sim.own)} на вкладе. План ${P.n} процедур в месяц.`
+    ? `Синяя линия: сколько клиника заработала на аппарате за вычетом долга. Красный пунктир: остаток кредита ${mln(sim.L)}. Оранжевая: свои ${mln(sim.own)} на вкладе. План ${P.n} процедур в месяц.`
     : `Синяя линия: сколько клиника заработала на аппарате (стартует с нуля, деньги ушли на покупку). Оранжевая: те же ${mln(P.cost)} на вкладе. План ${P.n} процедур в месяц.`;
-  document.getElementById('leg1').innerHTML=`<span><i class="sw" style="background:var(--accent)"></i>Аппарат: ${mln(sim.app)}${sim.resid>0?' (с продажей)':''}</span><span><i class="sw" style="background:var(--dep)"></i>Вклад: ${mln(sim.dep)}</span><span><i class="sw" style="background:var(--good);opacity:.4;height:10px"></i>аппарат впереди</span><span><i class="sw" style="background:var(--bad);opacity:.4;height:10px"></i>вклад впереди</span>`;
+  document.getElementById('leg1').innerHTML=`<span><i class="sw" style="background:var(--accent)"></i>Аппарат: ${mln(sim.app)}${sim.resid>0?' (с продажей)':''}</span><span><i class="sw" style="background:var(--dep)"></i>Вклад: ${mln(sim.dep)}</span>${sim.L>0?'<span><i class="sw" style="background:var(--bad)"></i>Остаток кредита</span>':''}<span><i class="sw" style="background:var(--good);opacity:.4;height:10px"></i>аппарат впереди</span><span><i class="sw" style="background:var(--bad);opacity:.4;height:10px"></i>вклад впереди</span>`;
   drawGrowth(sim,N);
   drawNeed();
 
@@ -472,7 +516,7 @@ function render(){
   document.getElementById('tbl').innerHTML=t;
 }
 render();
-let rt, lastW=document.getElementById('ch1').clientWidth; const ro=(window.ResizeObserver? new ResizeObserver(()=>{ const w=document.getElementById('ch1').clientWidth; if(Math.abs(w-lastW)<2) return; lastW=w; clearTimeout(rt); rt=setTimeout(render,80); }) : null);
+let rt, lastW=document.getElementById('ch1').clientWidth; const ro=window.ResizeObserver? new ResizeObserver(()=>{ const w=document.getElementById('ch1').clientWidth; if(Math.abs(w-lastW)<2) return; lastW=w; clearTimeout(rt); rt=setTimeout(render,80); }) : null;
 if(ro) ro.observe(document.getElementById('ch1')); else window.addEventListener('resize',()=>{clearTimeout(rt); rt=setTimeout(render,120);});
 })();
 </script>
